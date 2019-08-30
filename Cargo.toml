@@ -1,0 +1,10 @@
+[package]
+name = "gife"
+version = "0.1.0"
+authors = ["post-rex <post-rex@pm.me>"]
+edition = "2018"
+
+[dependencies]
+image = "0.22.1"
+gif = "0.10.2"
+clap = "2.33.0"

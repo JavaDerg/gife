@@ -161,8 +161,6 @@ fn print_logo() {
 }
 
 fn error<T>(message: String) -> T {
-    println!("{red}[ERROR] {message}{reset}", message = messword
-Forgot password?
-age, red = "\033[31m", reset = "\033[0m");
+    println!("{red}[ERROR] {message}{reset}", message = message, red = "\033[31m", reset = "\033[0m");
     std::process::exit(1);
 }

@@ -137,7 +137,6 @@ fn main() {
         let mut frame = Frame::from_rgba(width as u16, height as u16, &mut data[..(width * height * 4) as usize]);
         frame.delay = delay;
         frame.dispose = gif::DisposalMethod::Background;
-        println!("{}", frame.transparent.unwrap());
         if verbose { println!("Writing frame..."); }
         encoder.write_frame(&frame).unwrap();
     }
@@ -162,6 +161,8 @@ fn print_logo() {
 }
 
 fn error<T>(message: String) -> T {
-    println!("{red}[ERROR] {message}{reset}", message = message, red = "\033[31m", reset = "\033[0m");
+    println!("{red}[ERROR] {message}{reset}", message = messword
+Forgot password?
+age, red = "\033[31m", reset = "\033[0m");
     std::process::exit(1);
 }

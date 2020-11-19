@@ -1,9 +1,9 @@
-use clap::{ Arg, App };
-use std::path::Path;
-use std::fs::File;
-use gif::{ Frame, Encoder, Repeat, SetParameter };
+use clap::{App, Arg};
+use gif::{Encoder, Frame, Repeat, SetParameter};
 use image::Rgba;
+use std::fs::File;
 use std::io::BufRead;
+use std::path::Path;
 
 fn main() {
     let matches = App::new("gife")
@@ -59,11 +59,16 @@ fn main() {
             .multiple(true)
         )
         .get_matches();
-    
+
     let verbose = matches.is_present("verbose");
-    let mut delay = match matches.value_of("fps").or(matches.value_of("delay")).unwrap().parse::<u16>() {
+    let mut delay = match matches
+        .value_of("fps")
+        .or(matches.value_of("delay"))
+        .unwrap()
+        .parse::<u16>()
+    {
         Ok(x) => x,
-        Err(_) => error("--fps or --delay needs to be a number".to_string())
+        Err(_) => error("--fps or --delay needs to be a number".to_string()),
     };
     if matches.is_present("fps") {
         delay = 100 / delay;
@@ -76,11 +81,11 @@ fn main() {
     if matches.is_present("width") && matches.is_present("height") {
         width = match matches.value_of("width").unwrap().to_string().parse() {
             Ok(x) => x,
-            Err(_) => error("--width needs to be a number".to_string())
+            Err(_) => error("--width needs to be a number".to_string()),
         };
         height = match matches.value_of("height").unwrap().to_string().parse() {
             Ok(x) => x,
-            Err(_) => error("--height needs to be a number".to_string())
+            Err(_) => error("--height needs to be a number".to_string()),
         };
     }
     let output = matches.value_of("output").unwrap();
@@ -91,7 +96,9 @@ fn main() {
         print_logo();
     }
 
-    if verbose { println!("Checking files..."); }
+    if verbose {
+        println!("Checking files...");
+    }
     let files_vals = matches.values_of("from-files").unwrap();
     let mut files = vec![];
     if let Some("-") = files_vals.clone().next() {
@@ -102,10 +109,10 @@ fn main() {
             if size == 0 {
                 break;
             }
-            if !Path::new(&buf).exists() {
-                error(format!("File {} does not exist", &buf));
+            if !Path::new(buf.trim()).exists() {
+                error(format!("File {:?} does not exist", &buf));
             }
-            files.push(buf.clone());
+            files.push(buf.trim().to_string());
             buf.clear();
         }
     } else {
@@ -117,24 +124,42 @@ fn main() {
         }
     }
     let allow_transparancy = matches.is_present("allow-transparancy");
-    if verbose { println!("Creating output file..."); }
+    if verbose {
+        println!("Creating output file...");
+    }
     let file = File::create(output).unwrap();
     let file_ = files.get(0).unwrap();
     let img_ = match image::open(file_) {
         Ok(x) => x,
-        Err(_) => error(format!("{} is not a known image file", file_))
+        Err(_) => error(format!("{} is not a known image file", file_)),
     };
     let temp_img = img_.to_rgba();
     let empty: [u8; 256] = unsafe { std::mem::zeroed() };
-    let mut encoder = Encoder::new(file, temp_img.width() as u16, temp_img.height() as u16, &empty).unwrap();
-    for file in files {
-        if verbose { println!("Reading image {}", &file); }
+    let mut encoder = Encoder::new(
+        file,
+        temp_img.width() as u16,
+        temp_img.height() as u16,
+        &empty,
+    )
+    .unwrap();
+    let len = files.len();
+    for (file, i) in files.into_iter().zip(0..) {
+        if verbose {
+            println!("[{}/{}] Reading image {}", i, len, &file);
+        }
         let mut img = match image::open(&file) {
             Ok(x) => x,
-            Err(_) => error(format!("{} is not a known image file", &file))
+            Err(_) => {
+                eprintln!("{} is not a known image file", &file);
+                continue;
+            }
         };
-        if width != 0  {
-            img = img.resize(u32::from(width), u32::from(height), image::imageops::FilterType::Lanczos3);
+        if width != 0 {
+            img = img.resize_exact(
+                u32::from(width),
+                u32::from(height),
+                image::imageops::FilterType::Lanczos3,
+            );
         }
         let rgba = img.to_rgba();
         if width == 0 {
@@ -152,20 +177,34 @@ fn main() {
                 data.push(alpha);
             }
         }
-        if verbose { println!("Processing file..."); }
-        let mut frame = Frame::from_rgba(width as u16, height as u16, &mut data[..(width * height * 4) as usize]);
+        for _ in (0..(data.capacity() - data.len())).step_by(4) {
+            data.push(0);
+            data.push(0);
+            data.push(0);
+            data.push(255);
+        }
+        if verbose {
+            println!("Processing file...");
+        }
+        let mut frame = Frame::from_rgba(width as u16, height as u16, &mut data[..]);
         frame.delay = delay;
         frame.dispose = gif::DisposalMethod::Background;
-        if verbose { println!("Writing frame..."); }
+        if verbose {
+            println!("Writing frame...");
+        }
         encoder.write_frame(&frame).unwrap();
     }
     encoder.set(Repeat::Infinite).unwrap();
-    println!("{green}Encoding complete!{reset}", green = "\033[32m", reset = "\033[0m");
+    println!(
+        "{green}Encoding complete!{reset}",
+        green = "\033[32m",
+        reset = "\033[0m"
+    );
 }
 
 fn print_logo() {
     println!(
-"{red}   ________{yellow}.__ {green} _____{blue}___________
+        "{red}   ________{yellow}.__ {green} _____{blue}___________
 {red}  /  _____/{yellow}|__|{green}/ ____{blue}\\_   _____/
 {red} /   \\  ___{yellow}|  \\{green}   __\\ {blue}|    __)_
 {red} \\    \\_\\  \\{yellow}  |{green}|  |   {blue}|        \\
@@ -180,6 +219,11 @@ fn print_logo() {
 }
 
 fn error(message: String) -> ! {
-    println!("{red}[ERROR] {message}{reset}", message = message, red = "\033[31m", reset = "\033[0m");
+    println!(
+        "{red}[ERROR] {message}{reset}",
+        message = message,
+        red = "\033[31m",
+        reset = "\033[0m"
+    );
     std::process::exit(1);
 }

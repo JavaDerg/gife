@@ -3,6 +3,7 @@ use std::path::Path;
 use std::fs::File;
 use gif::{ Frame, Encoder, Repeat, SetParameter };
 use image::Rgba;
+use std::io::BufRead;
 
 fn main() {
     let matches = App::new("gife")
@@ -68,7 +69,7 @@ fn main() {
         delay = 100 / delay;
     }
     if matches.is_present("width") ^ matches.is_present("height") {
-        error::<()>("You can only set either both or none of --width and --height".to_string());
+        error("You can only set either both or none of --width and --height".to_string());
     }
     let mut width: u32 = 0;
     let mut height: u32 = 0;
@@ -84,23 +85,41 @@ fn main() {
     }
     let output = matches.value_of("output").unwrap();
     if !matches.is_present("overwrite") && Path::new(output).exists() {
-        error::<()>("The file already exists, to overwrite a file use the flag -O".to_string());
+        error("The file already exists, to overwrite a file use the flag -O".to_string());
     }
     if verbose {
         print_logo();
     }
 
     if verbose { println!("Checking files..."); }
-    let files = matches.values_of("from-files").unwrap();
-    for file in files.clone() {
-        if !Path::new(file).exists() {
-            error::<()>(format!("File {} does not exist", file));
+    let files_vals = matches.values_of("from-files").unwrap();
+    let mut files = vec![];
+    if let Some("-") = files_vals.clone().next() {
+        let mut stdin = std::io::stdin();
+        let mut stdin = stdin.lock();
+        let mut buf = String::with_capacity(512);
+        while let Ok(size) = stdin.read_line(&mut buf) {
+            if size == 0 {
+                break;
+            }
+            if !Path::new(&buf).exists() {
+                error(format!("File {} does not exist", &buf));
+            }
+            files.push(buf.clone());
+            buf.clear();
+        }
+    } else {
+        for file in files_vals.clone() {
+            if !Path::new(file).exists() {
+                error(format!("File {} does not exist", file));
+            }
+            files.push(file.to_string());
         }
     }
     let allow_transparancy = matches.is_present("allow-transparancy");
     if verbose { println!("Creating output file..."); }
     let file = File::create(output).unwrap();
-    let file_ = files.clone().next().unwrap();
+    let file_ = files.get(0).unwrap();
     let img_ = match image::open(file_) {
         Ok(x) => x,
         Err(_) => error(format!("{} is not a known image file", file_))
@@ -109,10 +128,10 @@ fn main() {
     let empty: [u8; 256] = unsafe { std::mem::zeroed() };
     let mut encoder = Encoder::new(file, temp_img.width() as u16, temp_img.height() as u16, &empty).unwrap();
     for file in files {
-        if verbose { println!("Reading image {}", file); }
-        let mut img = match image::open(file) {
+        if verbose { println!("Reading image {}", &file); }
+        let mut img = match image::open(&file) {
             Ok(x) => x,
-            Err(_) => error(format!("{} is not a known image file", file))
+            Err(_) => error(format!("{} is not a known image file", &file))
         };
         if width != 0  {
             img = img.resize(u32::from(width), u32::from(height), image::imageops::FilterType::Lanczos3);
@@ -160,7 +179,7 @@ fn print_logo() {
     );
 }
 
-fn error<T>(message: String) -> T {
+fn error(message: String) -> ! {
     println!("{red}[ERROR] {message}{reset}", message = message, red = "\033[31m", reset = "\033[0m");
     std::process::exit(1);
 }
